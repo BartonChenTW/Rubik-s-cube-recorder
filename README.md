@@ -137,6 +137,25 @@ The app will automatically open in your default web browser at `http://localhost
 4. Click "💾 Save Algorithm"
 5. Browse your algorithm library with category filters
 
+### GitHub Data Sync (Cloud Persistence)
+
+**Keep your data safe with automatic GitHub backup!**
+
+1. **Enable Auto-Sync** in the sidebar under "💾 Data Backup"
+2. Toggle "Auto-sync to GitHub" ON
+3. Every time you save a solve, it automatically commits and pushes to GitHub
+4. Your data persists even when the app restarts or redeploys!
+
+**Manual Sync:**
+- Click "🔄 Sync Now" button to manually backup your data
+- Status indicator shows if you have unsaved changes
+
+**How it works:**
+- Data files (`data/solves.csv` and `data/algorithms.json`) are stored in your GitHub repo
+- Changes are committed with descriptive messages
+- Automatic push to GitHub ensures cloud backup
+- Works on both local and Streamlit Cloud deployments
+
 ## Project Structure
 
 ```
@@ -150,14 +169,22 @@ Rubik-s-cube-recorder/
 │   └── algorithms.json        # Algorithm library (auto-generated)
 └── utils/                      # Utility modules
     ├── data_manager.py        # Data management functions
-    └── visualizations.py      # Chart and visualization functions
+    ├── visualizations.py      # Chart and visualization functions
+    └── github_storage.py      # GitHub sync functionality
 ```
 
 ## Data Storage
 
+**Local Storage:**
 - **Solve records** are stored in `data/solves.csv`
 - **Algorithms** are stored in `data/algorithms.json`
 - Data files are automatically created on first run
+
+**Cloud Persistence (GitHub Sync):**
+- Enable "Auto-sync to GitHub" for automatic backup
+- Data commits to your GitHub repository
+- Survives app restarts and redeployments
+- No additional database needed!
 - All data is stored locally on your machine
 
 ## Features in Detail
