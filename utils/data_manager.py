@@ -53,6 +53,11 @@ class DataManager:
         """
         try:
             df = self.load_data()
+            
+            # Format timestamp without milliseconds
+            if 'timestamp' in solve_record and isinstance(solve_record['timestamp'], datetime):
+                solve_record['timestamp'] = solve_record['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            
             new_record = pd.DataFrame([solve_record])
             df = pd.concat([df, new_record], ignore_index=True)
             df.to_csv(self.solves_file, index=False)

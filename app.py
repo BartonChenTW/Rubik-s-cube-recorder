@@ -8,6 +8,7 @@ warnings.filterwarnings('ignore', message='.*pyarrow.*')
 
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
 from utils.data_manager import DataManager
 from utils.visualizations import create_time_chart, create_statistics_cards
@@ -436,7 +437,16 @@ elif page == "Statistics":
             # Distribution by cube type
             st.subheader("🧊 Solves by Cube Type")
             cube_counts = df['cube_type'].value_counts()
-            st.bar_chart(cube_counts)
+            fig_cubes = go.Figure(data=[
+                go.Bar(x=cube_counts.index, y=cube_counts.values, marker_color='#1f77b4')
+            ])
+            fig_cubes.update_layout(
+                xaxis_title="Cube Type",
+                yaxis_title="Number of Solves",
+                showlegend=False,
+                height=400
+            )
+            st.plotly_chart(fig_cubes, use_container_width=True)
             
             # Personal records
             st.subheader("🏆 Personal Records")
