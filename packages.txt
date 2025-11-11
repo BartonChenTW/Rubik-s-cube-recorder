@@ -1,4 +1,0 @@
-# System packages required for deployment
-# Currently none needed, but you can add packages here if required
-# Example:
-# libgl1-mesa-glx
