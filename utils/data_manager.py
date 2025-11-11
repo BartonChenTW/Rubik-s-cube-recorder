@@ -28,7 +28,7 @@ class DataManager:
         """Create data files if they don't exist"""
         if not self.solves_file.exists():
             pd.DataFrame(columns=[
-                'timestamp', 'player_name', 'time', 'cube_type', 'scramble', 'notes'
+                'timestamp', 'player_name', 'time', 'cube_type', 'method', 'scramble', 'notes'
             ]).to_csv(self.solves_file, index=False)
         
         if not self.algorithms_file.exists():
@@ -47,6 +47,7 @@ class DataManager:
                 - player_name: str
                 - time: float (seconds)
                 - cube_type: str
+                - method: str
                 - scramble: str
                 - notes: str
         """
@@ -75,14 +76,17 @@ class DataManager:
                     # Add player_name column if it doesn't exist (for backward compatibility)
                     if 'player_name' not in df.columns:
                         df['player_name'] = 'Anonymous'
+                    # Add method column if it doesn't exist (for backward compatibility)
+                    if 'method' not in df.columns:
+                        df['method'] = 'None'
                 return df
             return pd.DataFrame(columns=[
-                'timestamp', 'player_name', 'time', 'cube_type', 'scramble', 'notes'
+                'timestamp', 'player_name', 'time', 'cube_type', 'method', 'scramble', 'notes'
             ])
         except Exception as e:
             print(f"Error loading data: {e}")
             return pd.DataFrame(columns=[
-                'timestamp', 'player_name', 'time', 'cube_type', 'scramble', 'notes'
+                'timestamp', 'player_name', 'time', 'cube_type', 'method', 'scramble', 'notes'
             ])
     
     def delete_solve(self, index):

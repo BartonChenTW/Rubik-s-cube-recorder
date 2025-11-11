@@ -185,6 +185,33 @@ if page == "Record New Solve":
             help="Select the type of cube"
         )
         
+        # Algorithm/Method selection
+        st.markdown("#### Method/Algorithm Used")
+        
+        # Load existing algorithms
+        algorithms = data_manager.load_algorithms()
+        algorithm_names = [algo['name'] for algo in algorithms] if algorithms else []
+        
+        # Create options list
+        method_options = ["None", "Add new method..."] + algorithm_names
+        
+        selected_method = st.selectbox(
+            "Select method",
+            options=method_options,
+            help="Choose the method/algorithm you used, or add a new one"
+        )
+        
+        # If "Add new method" is selected, show input field
+        new_method_name = None
+        if selected_method == "Add new method...":
+            new_method_name = st.text_input(
+                "New method name",
+                placeholder="e.g., CFOP, Roux, ZZ, Beginner's Method",
+                help="Enter the name of the method you used"
+            )
+            if new_method_name:
+                selected_method = new_method_name
+        
         scramble = st.text_area(
             "Scramble",
             placeholder="R U R' U' F2 D...",
@@ -210,11 +237,28 @@ if page == "Record New Solve":
     # Submit button
     if st.button("💾 Save Solve", type="primary"):
         if solve_time > 0:
+            # Determine final method name
+            final_method = "None"
+            if selected_method and selected_method != "None" and selected_method != "Add new method...":
+                final_method = selected_method
+                
+                # If it's a new method, add it to algorithms
+                if new_method_name and new_method_name == selected_method:
+                    algorithm = {
+                        "name": new_method_name,
+                        "notation": "",
+                        "category": "Method",
+                        "notes": f"Added from solve record on {datetime.now().strftime('%Y-%m-%d')}",
+                        "date_added": datetime.now()
+                    }
+                    data_manager.add_algorithm(algorithm)
+            
             record = {
                 "timestamp": datetime.now(),
                 "player_name": st.session_state.player_name if st.session_state.player_name else "Anonymous",
                 "time": solve_time,
                 "cube_type": cube_type,
+                "method": final_method,
                 "scramble": scramble,
                 "notes": notes
             }
@@ -244,8 +288,8 @@ elif page == "View Records":
     df = data_manager.load_data()
     
     if not df.empty:
-        # Filters
-        col1, col2, col3, col4 = st.columns(4)
+        # Filters - Row 1
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             # Player name filter
@@ -267,13 +311,34 @@ elif page == "View Records":
             )
         
         with col3:
+            # Method filter
+            if 'method' in df.columns:
+                methods = df['method'].unique().tolist()
+                method_filter = st.multiselect(
+                    "Filter by Method",
+                    options=methods,
+                    default=methods
+                )
+            else:
+                method_filter = None
+        
+        # Filters - Row 2
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            sort_options = ["timestamp", "time", "cube_type"]
+            if 'player_name' in df.columns:
+                sort_options.append("player_name")
+            if 'method' in df.columns:
+                sort_options.append("method")
+            
             sort_by = st.selectbox(
                 "Sort by",
-                ["timestamp", "time", "cube_type", "player_name"] if 'player_name' in df.columns else ["timestamp", "time", "cube_type"],
+                sort_options,
                 index=0
             )
         
-        with col4:
+        with col2:
             sort_order = st.radio(
                 "Order",
                 ["Descending", "Ascending"],
@@ -284,6 +349,8 @@ elif page == "View Records":
         filtered_df = df[df['cube_type'].isin(cube_filter)]
         if player_filter is not None and 'player_name' in df.columns:
             filtered_df = filtered_df[filtered_df['player_name'].isin(player_filter)]
+        if method_filter is not None and 'method' in df.columns:
+            filtered_df = filtered_df[filtered_df['method'].isin(method_filter)]
         ascending = sort_order == "Ascending"
         filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
         
