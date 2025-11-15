@@ -9,6 +9,8 @@ warnings.filterwarnings('ignore', message='.*pyarrow.*')
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import json
+import streamlit.components.v1 as components
 from datetime import datetime
 from utils.mongo_data_manager import MongoDataManager
 from utils.visualizations import create_time_chart, create_statistics_cards
@@ -123,15 +125,46 @@ if page == "Record New Solve":
     timer_col1, timer_col2, timer_col3 = st.columns([2, 1, 1])
     
     with timer_col1:
-        # Display timer
-        if st.session_state.timer_running:
-            current_time = datetime.now()
-            st.session_state.elapsed_time = (current_time - st.session_state.start_time).total_seconds()
-            time_display = st.session_state.elapsed_time
-        else:
-            time_display = st.session_state.recorded_time
-        
-        st.markdown(f"### <span style='color: #FF6B6B; font-size: 4rem; font-weight: bold;'>{time_display:.2f}s</span>", unsafe_allow_html=True)
+                # Display timer (client-side JS updates without reruns)
+                base_offset = float(st.session_state.recorded_time or 0.0)
+                if st.session_state.timer_running and st.session_state.start_time:
+                        time_display = (datetime.now() - st.session_state.start_time).total_seconds() + base_offset
+                else:
+                        time_display = base_offset
+
+                # Render a JS-driven timer that updates in the browser
+                running_js = 'true' if st.session_state.timer_running and st.session_state.start_time else 'false'
+                start_iso = st.session_state.start_time.isoformat() if st.session_state.start_time else None
+                components.html(
+                        f"""
+                        <div id="timerDisplay" style="color:#FF6B6B; font-size: 4rem; font-weight: bold;">{time_display:.2f}s</div>
+                        <script>
+                        (function(){{
+                            const running = {running_js};
+                            const startISO = {json.dumps(start_iso)};
+                            const base = {base_offset:.6f};
+                            const el = document.getElementById('timerDisplay');
+                            function fmt(ms){{ return (ms/1000).toFixed(2) + 's'; }}
+                            if (running && startISO) {{
+                                const t0 = new Date(startISO).getTime();
+                                const baseMs = base * 1000;
+                                let rafId;
+                                function tick(){{
+                                    const now = Date.now();
+                                    const elapsedMs = (now - t0) + baseMs;
+                                    el.textContent = fmt(elapsedMs);
+                                    rafId = window.requestAnimationFrame(tick);
+                                }}
+                                tick();
+                                window.addEventListener('beforeunload', ()=>{{ if (rafId) cancelAnimationFrame(rafId); }});
+                            }} else {{
+                                el.textContent = fmt(base*1000);
+                            }}
+                        }})();
+                        </script>
+                        """,
+                        height=100,
+                )
     
     with timer_col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
@@ -140,11 +173,16 @@ if page == "Record New Solve":
                 st.session_state.timer_running = True
                 st.session_state.start_time = datetime.now()
                 st.session_state.elapsed_time = 0.0
+                st.session_state.recorded_time = 0.0
                 st.rerun()
         else:
             if st.button("⏹️\nStop", key="stop_timer", use_container_width=True, type="primary"):
                 st.session_state.timer_running = False
-                st.session_state.recorded_time = st.session_state.elapsed_time
+                # Compute elapsed based on start_time to avoid needing live reruns
+                if st.session_state.start_time:
+                    st.session_state.recorded_time = (datetime.now() - st.session_state.start_time).total_seconds()
+                else:
+                    st.session_state.recorded_time = float(st.session_state.recorded_time or 0.0)
                 st.rerun()
     
     with timer_col3:
@@ -156,11 +194,7 @@ if page == "Record New Solve":
             st.session_state.recorded_time = 0.0
             st.rerun()
     
-    # Auto-refresh while timer is running (reduce frequency to lower rerun cost)
-    if st.session_state.timer_running:
-        import time
-        time.sleep(0.1)  # 100ms refresh for smoother UI with far fewer reruns
-        st.rerun()
+    # No auto-refresh needed; timer updates client-side without reruns
     
     st.markdown("---")
 
