@@ -153,21 +153,21 @@ if page == "Record New Solve":
                 const startISO = {json.dumps(start_iso)};
                 const base = {base_offset:.6f};
                 const el = document.getElementById('timerDisplay');
-                function fmt(ms){{ return (ms/1000).toFixed(2) + 's'; }}
+                function fmt(ms){{ return (Math.max(0, ms)/1000).toFixed(2) + 's'; }}
                 if (running && startISO) {{
                     const t0 = new Date(startISO).getTime();
                     const baseMs = base * 1000;
                     let rafId;
                     function tick(){{
                         const now = Date.now();
-                        const elapsedMs = (now - t0) + baseMs;
+                        const elapsedMs = Math.max(0, (now - t0) + baseMs);
                         el.textContent = fmt(elapsedMs);
                         rafId = window.requestAnimationFrame(tick);
                     }}
                     tick();
                     window.addEventListener('beforeunload', ()=>{{ if (rafId) cancelAnimationFrame(rafId); }});
                 }} else {{
-                    el.textContent = fmt(base*1000);
+                    el.textContent = fmt(Math.max(0, base*1000));
                 }}
             }})();
             </script>
