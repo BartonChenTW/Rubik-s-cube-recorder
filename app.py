@@ -153,6 +153,7 @@ if page == "Record New Solve":
                 const startISO = {json.dumps(start_iso)};
                 const base = {base_offset:.6f};
                 const el = document.getElementById('timerDisplay');
+                let currentElapsedSeconds = base;
                 function fmt(ms){{ return (Math.max(0, ms)/1000).toFixed(2) + 's'; }}
                 if (running && startISO) {{
                     const t0 = new Date(startISO).getTime();
@@ -161,6 +162,7 @@ if page == "Record New Solve":
                     function tick(){{
                         const now = Date.now();
                         const elapsedMs = Math.max(0, (now - t0) + baseMs);
+                        currentElapsedSeconds = elapsedMs / 1000;
                         el.textContent = fmt(elapsedMs);
                         rafId = window.requestAnimationFrame(tick);
                     }}
@@ -169,6 +171,8 @@ if page == "Record New Solve":
                 }} else {{
                     el.textContent = fmt(Math.max(0, base*1000));
                 }}
+                // Store current elapsed time for Python to read
+                window.timerElapsedSeconds = function() {{ return currentElapsedSeconds; }};
             }})();
             </script>
             """,
@@ -189,9 +193,11 @@ if page == "Record New Solve":
             if st.button("⏹️\nStop", key="stop_timer", use_container_width=True, type="primary"):
                 from datetime import timezone
                 st.session_state.timer_running = False
-                # Compute elapsed based on start_time to avoid needing live reruns
+                # Compute elapsed based on start_time (server-side calculation as fallback)
                 if st.session_state.start_time:
-                    st.session_state.recorded_time = (datetime.now(timezone.utc) - st.session_state.start_time).total_seconds()
+                    # Use elapsed_time which includes any accumulated time from pauses
+                    server_elapsed = (datetime.now(timezone.utc) - st.session_state.start_time).total_seconds()
+                    st.session_state.recorded_time = st.session_state.elapsed_time + server_elapsed
                 else:
                     st.session_state.recorded_time = float(st.session_state.recorded_time or 0.0)
                 st.rerun()
