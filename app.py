@@ -158,10 +158,14 @@ if page == "Record New Solve":
                 if (running && startISO) {{
                     const t0 = new Date(startISO).getTime();
                     const baseMs = base * 1000;
+                    // Calculate a one-time correction to account for network delay/clock skew
+                    // If client 'now' is behind server start time (negative elapsed), add a positive offset
+                    const initialNow = Date.now();
+                    const correctionMs = Math.max(0, t0 - initialNow);
                     let rafId;
                     function tick(){{
                         const now = Date.now();
-                        const elapsedMs = (now - t0) + baseMs;
+                        const elapsedMs = (now - t0) + baseMs + correctionMs;
                         currentElapsedSeconds = elapsedMs / 1000;
                         el.textContent = fmt(elapsedMs);
                         rafId = window.requestAnimationFrame(tick);
