@@ -154,14 +154,14 @@ if page == "Record New Solve":
                 const base = {base_offset:.6f};
                 const el = document.getElementById('timerDisplay');
                 let currentElapsedSeconds = base;
-                function fmt(ms){{ return (Math.max(0, ms)/1000).toFixed(2) + 's'; }}
+                function fmt(ms){{ return (ms/1000).toFixed(2) + 's'; }}
                 if (running && startISO) {{
                     const t0 = new Date(startISO).getTime();
                     const baseMs = base * 1000;
                     let rafId;
                     function tick(){{
                         const now = Date.now();
-                        const elapsedMs = Math.max(0, (now - t0) + baseMs);
+                        const elapsedMs = (now - t0) + baseMs;
                         currentElapsedSeconds = elapsedMs / 1000;
                         el.textContent = fmt(elapsedMs);
                         rafId = window.requestAnimationFrame(tick);
@@ -169,7 +169,7 @@ if page == "Record New Solve":
                     tick();
                     window.addEventListener('beforeunload', ()=>{{ if (rafId) cancelAnimationFrame(rafId); }});
                 }} else {{
-                    el.textContent = fmt(Math.max(0, base*1000));
+                    el.textContent = fmt(base*1000);
                 }}
                 // Store current elapsed time for Python to read
                 window.timerElapsedSeconds = function() {{ return currentElapsedSeconds; }};
