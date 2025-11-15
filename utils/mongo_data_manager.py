@@ -10,6 +10,36 @@ from pymongo.errors import ConnectionFailure, OperationFailure
 import streamlit as st
 
 
+# Cache MongoDB connection to avoid reconnecting on every interaction
+@st.cache_resource
+def get_mongodb_client(connection_string):
+    """
+    Get cached MongoDB client connection
+    
+    Args:
+        connection_string (str): MongoDB Atlas connection string
+    
+    Returns:
+        MongoClient: MongoDB client instance
+    """
+    try:
+        client = MongoClient(
+            connection_string,
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=10,
+            minPoolSize=1,
+            maxIdleTimeMS=45000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=20000
+        )
+        # Test connection
+        client.admin.command('ping')
+        return client
+    except Exception as e:
+        print(f"Error creating MongoDB client: {e}")
+        return None
+
+
 class MongoDataManager:
     """Manages data persistence for solve records and algorithms using MongoDB"""
     
@@ -48,20 +78,25 @@ class MongoDataManager:
     def _connect(self):
         """Establish connection to MongoDB Atlas"""
         try:
-            self.client = MongoClient(self.connection_string, serverSelectionTimeoutMS=5000)
-            # Test connection
-            self.client.admin.command('ping')
+            # Use cached client connection
+            self.client = get_mongodb_client(self.connection_string)
+            
+            if not self.client:
+                return False
             
             # Get database and collections
             self.db = self.client['rubiks_cube_recorder']
             self.solves_collection = self.db['solves']
             self.algorithms_collection = self.db['algorithms']
             
-            # Create indexes for better performance
-            self.solves_collection.create_index([('timestamp', DESCENDING)])
-            self.solves_collection.create_index('cube_type')
-            self.solves_collection.create_index('player_name')
-            self.algorithms_collection.create_index('category')
+            # Create indexes for better performance (only if not exists)
+            try:
+                self.solves_collection.create_index([('timestamp', DESCENDING)], background=True)
+                self.solves_collection.create_index('cube_type', background=True)
+                self.solves_collection.create_index('player_name', background=True)
+                self.algorithms_collection.create_index('category', background=True)
+            except Exception:
+                pass  # Indexes might already exist
             
             return True
         except ConnectionFailure as e:
@@ -134,7 +169,7 @@ class MongoDataManager:
     
     def load_data(self):
         """
-        Load all solve records
+        Load all solve records with caching
         
         Returns:
             pd.DataFrame: DataFrame containing all solve records
@@ -145,8 +180,13 @@ class MongoDataManager:
             ])
         
         try:
-            # Fetch all solves from MongoDB
-            solves = list(self.solves_collection.find().sort('timestamp', DESCENDING))
+            # Fetch all solves from MongoDB, sorted by timestamp descending
+            solves = list(
+                self.solves_collection.find(
+                    {},
+                    {'_id': 0}  # Exclude _id field for better performance
+                ).sort('timestamp', DESCENDING)
+            )
             
             if not solves:
                 return pd.DataFrame(columns=[
@@ -155,10 +195,6 @@ class MongoDataManager:
             
             # Convert to DataFrame
             df = pd.DataFrame(solves)
-            
-            # Remove MongoDB _id field
-            if '_id' in df.columns:
-                df = df.drop('_id', axis=1)
             
             # Ensure required columns exist
             required_columns = ['timestamp', 'player_name', 'time', 'cube_type', 'method', 'scramble', 'notes']
@@ -339,13 +375,8 @@ class MongoDataManager:
             return []
         
         try:
-            algorithms = list(self.algorithms_collection.find())
-            
-            # Remove MongoDB _id field
-            for algo in algorithms:
-                if '_id' in algo:
-                    del algo['_id']
-            
+            # Fetch algorithms without _id field for better performance
+            algorithms = list(self.algorithms_collection.find({}, {'_id': 0}))
             return algorithms
             
         except Exception as e:
@@ -401,13 +432,8 @@ class MongoDataManager:
                     {'notation': {'$regex': query, '$options': 'i'}}
                 ]
             
-            algorithms = list(self.algorithms_collection.find(search_filter))
-            
-            # Remove MongoDB _id field
-            for algo in algorithms:
-                if '_id' in algo:
-                    del algo['_id']
-            
+            # Fetch without _id field
+            algorithms = list(self.algorithms_collection.find(search_filter, {'_id': 0}))
             return algorithms
             
         except Exception as e:

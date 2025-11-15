@@ -10,7 +10,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
-from utils.mongo_data_manager import MongoDataManager, show_mongodb_config_ui
+from utils.mongo_data_manager import MongoDataManager
 from utils.visualizations import create_time_chart, create_statistics_cards
 
 # Page configuration
@@ -23,6 +23,11 @@ st.set_page_config(
 
 # Initialize MongoDB data manager
 data_manager = MongoDataManager()
+
+# Cache algorithms to avoid DB hits on every rerun
+@st.cache_data(ttl=300)
+def get_algorithms_cached():
+    return data_manager.load_algorithms()
 
 # Custom CSS
 st.markdown("""
@@ -151,119 +156,129 @@ if page == "Record New Solve":
             st.session_state.recorded_time = 0.0
             st.rerun()
     
-    # Auto-refresh while timer is running
+    # Auto-refresh while timer is running (reduce frequency to lower rerun cost)
     if st.session_state.timer_running:
         import time
-        time.sleep(0.01)
+        time.sleep(0.1)  # 100ms refresh for smoother UI with far fewer reruns
         st.rerun()
     
     st.markdown("---")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
+
+    # Only render Solve Details and DB-bound widgets when timer is NOT running
+    if st.session_state.timer_running:
         st.subheader("Solve Details")
-        
-        # Input fields - use recorded time as default
-        solve_time = st.number_input(
-            "Solve Time (seconds)",
-            min_value=0.0,
-            max_value=999.99,
-            value=float(st.session_state.recorded_time) if st.session_state.recorded_time > 0 else 0.0,
-            step=0.01,
-            format="%.2f",
-            help="Enter your solving time in seconds (or use stopwatch above)"
-        )
-        
-        cube_type = st.selectbox(
-            "Cube Type",
-            ["3x3", "2x2", "4x4", "5x5", "Pyraminx", "Megaminx", "Skewb", "Square-1"],
-            help="Select the type of cube"
-        )
-        
-        # Algorithm/Method selection
-        st.markdown("#### Method/Algorithm Used")
-        
-        # Load existing algorithms
-        algorithms = data_manager.load_algorithms()
-        algorithm_names = [algo['name'] for algo in algorithms] if algorithms else []
-        
-        # Create options list
-        method_options = ["None", "Add new method..."] + algorithm_names
-        
-        selected_method = st.selectbox(
-            "Select method",
-            options=method_options,
-            help="Choose the method/algorithm you used, or add a new one"
-        )
-        
-        # If "Add new method" is selected, show input field
-        new_method_name = None
-        if selected_method == "Add new method...":
-            new_method_name = st.text_input(
-                "New method name",
-                placeholder="e.g., CFOP, Roux, ZZ, Beginner's Method",
-                help="Enter the name of the method you used"
+        st.info("Timer is running. Stop the timer to enter details and save.")
+    else:
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.subheader("Solve Details")
+
+            # Input fields - use recorded time as default
+            solve_time = st.number_input(
+                "Solve Time (seconds)",
+                min_value=0.0,
+                max_value=999.99,
+                value=float(st.session_state.recorded_time) if st.session_state.recorded_time > 0 else 0.0,
+                step=0.01,
+                format="%.2f",
+                help="Enter your solving time in seconds (or use stopwatch above)"
             )
-            if new_method_name:
-                selected_method = new_method_name
-        
-        scramble = st.text_area(
-            "Scramble",
-            placeholder="R U R' U' F2 D...",
-            help="Enter the scramble sequence used"
-        )
-        
-        notes = st.text_area(
-            "Notes (Optional)",
-            placeholder="Any observations or comments about this solve...",
-            help="Add any notes about this solve"
-        )
-        
-    with col2:
-        st.subheader("Quick Info")
-        if st.session_state.player_name:
-            st.info(f"**Player:** {st.session_state.player_name}")
-        st.info(f"**Date:** {datetime.now().strftime('%Y-%m-%d')}")
-        st.info(f"**Time:** {datetime.now().strftime('%H:%M:%S')}")
-        
-        if solve_time > 0:
-            st.success(f"**Time:** {solve_time:.2f}s")
-    
-    # Submit button
-    if st.button("💾 Save Solve", type="primary"):
-        if solve_time > 0:
-            # Determine final method name
-            final_method = "None"
-            if selected_method and selected_method != "None" and selected_method != "Add new method...":
-                final_method = selected_method
-                
-                # If it's a new method, add it to algorithms
-                if new_method_name and new_method_name == selected_method:
-                    algorithm = {
-                        "name": new_method_name,
-                        "notation": "",
-                        "category": "Method",
-                        "notes": f"Added from solve record on {datetime.now().strftime('%Y-%m-%d')}",
-                        "date_added": datetime.now()
-                    }
-                    data_manager.add_algorithm(algorithm)
-            
-            record = {
-                "timestamp": datetime.now(),
-                "player_name": st.session_state.player_name if st.session_state.player_name else "Anonymous",
-                "time": solve_time,
-                "cube_type": cube_type,
-                "method": final_method,
-                "scramble": scramble,
-                "notes": notes
-            }
-            data_manager.add_solve(record)
-            st.success("✅ Solve recorded successfully!")
-            
-            st.balloons()
-        else:
-            st.error("⚠️ Please enter a valid solve time!")
+
+            cube_type = st.selectbox(
+                "Cube Type",
+                ["3x3", "2x2", "4x4", "5x5", "Pyraminx", "Megaminx", "Skewb", "Square-1"],
+                help="Select the type of cube"
+            )
+
+            # Algorithm/Method selection
+            st.markdown("#### Method/Algorithm Used")
+
+            # Load existing algorithms (cached to avoid repeated DB calls during timer reruns)
+            algorithms = get_algorithms_cached()
+            algorithm_names = [algo['name'] for algo in algorithms] if algorithms else []
+
+            # Create options list
+            method_options = ["None", "Add new method..."] + algorithm_names
+
+            selected_method = st.selectbox(
+                "Select method",
+                options=method_options,
+                help="Choose the method/algorithm you used, or add a new one"
+            )
+
+            # If "Add new method" is selected, show input field
+            new_method_name = None
+            if selected_method == "Add new method...":
+                new_method_name = st.text_input(
+                    "New method name",
+                    placeholder="e.g., CFOP, Roux, ZZ, Beginner's Method",
+                    help="Enter the name of the method you used"
+                )
+                if new_method_name:
+                    selected_method = new_method_name
+
+            scramble = st.text_area(
+                "Scramble",
+                placeholder="R U R' U' F2 D...",
+                help="Enter the scramble sequence used"
+            )
+
+            notes = st.text_area(
+                "Notes (Optional)",
+                placeholder="Any observations or comments about this solve...",
+                help="Add any notes about this solve"
+            )
+
+        with col2:
+            st.subheader("Quick Info")
+            if st.session_state.player_name:
+                st.info(f"**Player:** {st.session_state.player_name}")
+            st.info(f"**Date:** {datetime.now().strftime('%Y-%m-%d')}")
+            st.info(f"**Time:** {datetime.now().strftime('%H:%M:%S')}")
+
+            if solve_time > 0:
+                st.success(f"**Time:** {solve_time:.2f}s")
+
+        # Submit button
+        if st.button("💾 Save Solve", type="primary"):
+            if solve_time > 0:
+                # Determine final method name
+                final_method = "None"
+                if selected_method and selected_method != "None" and selected_method != "Add new method...":
+                    final_method = selected_method
+
+                    # If it's a new method, add it to algorithms
+                    if new_method_name and new_method_name == selected_method:
+                        algorithm = {
+                            "name": new_method_name,
+                            "notation": "",
+                            "category": "Method",
+                            "notes": f"Added from solve record on {datetime.now().strftime('%Y-%m-%d')}",
+                            "date_added": datetime.now()
+                        }
+                        data_manager.add_algorithm(algorithm)
+                        # Invalidate cached algorithms so the new one appears immediately
+                        try:
+                            get_algorithms_cached.clear()
+                        except Exception:
+                            pass
+
+                record = {
+                    "timestamp": datetime.now(),
+                    "player_name": st.session_state.player_name if st.session_state.player_name else "Anonymous",
+                    "time": solve_time,
+                    "cube_type": cube_type,
+                    "method": final_method,
+                    "scramble": scramble,
+                    "notes": notes
+                }
+                data_manager.add_solve(record)
+                st.success("✅ Solve recorded successfully!")
+
+                st.balloons()
+            else:
+                st.error("⚠️ Please enter a valid solve time!")
 
 # ===== VIEW RECORDS PAGE =====
 elif page == "View Records":
