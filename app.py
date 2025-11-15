@@ -130,9 +130,12 @@ if page == "Record New Solve":
     
     with timer_col1:
         # Display timer (client-side JS updates without reruns)
-        # When timer is running, calculate from start_time; when stopped, show recorded_time
+        # Use UTC to avoid timezone issues between server and client
+        from datetime import timezone
+        
         if st.session_state.timer_running and st.session_state.start_time:
-            time_display = (datetime.now() - st.session_state.start_time).total_seconds()
+            # Calculate display time server-side for initial render
+            time_display = (datetime.now(timezone.utc) - st.session_state.start_time).total_seconds()
             base_offset = 0.0  # Always start from 0 when running
         else:
             time_display = float(st.session_state.recorded_time or 0.0)
@@ -176,17 +179,19 @@ if page == "Record New Solve":
         st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
         if not st.session_state.timer_running:
             if st.button("▶️\nStart", key="start_timer", use_container_width=True, type="primary"):
+                from datetime import timezone
                 st.session_state.timer_running = True
-                st.session_state.start_time = datetime.now()
+                st.session_state.start_time = datetime.now(timezone.utc)
                 st.session_state.elapsed_time = 0.0
                 st.session_state.recorded_time = 0.0
                 st.rerun()
         else:
             if st.button("⏹️\nStop", key="stop_timer", use_container_width=True, type="primary"):
+                from datetime import timezone
                 st.session_state.timer_running = False
                 # Compute elapsed based on start_time to avoid needing live reruns
                 if st.session_state.start_time:
-                    st.session_state.recorded_time = (datetime.now() - st.session_state.start_time).total_seconds()
+                    st.session_state.recorded_time = (datetime.now(timezone.utc) - st.session_state.start_time).total_seconds()
                 else:
                     st.session_state.recorded_time = float(st.session_state.recorded_time or 0.0)
                 st.rerun()
