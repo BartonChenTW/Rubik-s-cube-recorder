@@ -92,7 +92,7 @@ st.sidebar.markdown("---")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Choose a page:",
-    ["Record New Solve", "View Records", "Statistics", "Algorithms"]
+    ["Record New Solve", "View Records", "Statistics"]
 )
 
 # ===== RECORD NEW SOLVE PAGE =====
@@ -129,46 +129,48 @@ if page == "Record New Solve":
     timer_col1, timer_col2, timer_col3 = st.columns([2, 1, 1])
     
     with timer_col1:
-                # Display timer (client-side JS updates without reruns)
-                base_offset = float(st.session_state.recorded_time or 0.0)
-                if st.session_state.timer_running and st.session_state.start_time:
-                        time_display = (datetime.now() - st.session_state.start_time).total_seconds() + base_offset
-                else:
-                        time_display = base_offset
+        # Display timer (client-side JS updates without reruns)
+        # When timer is running, calculate from start_time; when stopped, show recorded_time
+        if st.session_state.timer_running and st.session_state.start_time:
+            time_display = (datetime.now() - st.session_state.start_time).total_seconds()
+            base_offset = 0.0  # Always start from 0 when running
+        else:
+            time_display = float(st.session_state.recorded_time or 0.0)
+            base_offset = time_display
 
-                # Render a JS-driven timer that updates in the browser
-                running_js = 'true' if st.session_state.timer_running and st.session_state.start_time else 'false'
-                start_iso = st.session_state.start_time.isoformat() if st.session_state.start_time else None
-                components.html(
-                        f"""
-                        <div id="timerDisplay" style="color:#FF6B6B; font-size: 4rem; font-weight: bold;">{time_display:.2f}s</div>
-                        <script>
-                        (function(){{
-                            const running = {running_js};
-                            const startISO = {json.dumps(start_iso)};
-                            const base = {base_offset:.6f};
-                            const el = document.getElementById('timerDisplay');
-                            function fmt(ms){{ return (ms/1000).toFixed(2) + 's'; }}
-                            if (running && startISO) {{
-                                const t0 = new Date(startISO).getTime();
-                                const baseMs = base * 1000;
-                                let rafId;
-                                function tick(){{
-                                    const now = Date.now();
-                                    const elapsedMs = (now - t0) + baseMs;
-                                    el.textContent = fmt(elapsedMs);
-                                    rafId = window.requestAnimationFrame(tick);
-                                }}
-                                tick();
-                                window.addEventListener('beforeunload', ()=>{{ if (rafId) cancelAnimationFrame(rafId); }});
-                            }} else {{
-                                el.textContent = fmt(base*1000);
-                            }}
-                        }})();
-                        </script>
-                        """,
-                        height=100,
-                )
+        # Render a JS-driven timer that updates in the browser
+        running_js = 'true' if st.session_state.timer_running and st.session_state.start_time else 'false'
+        start_iso = st.session_state.start_time.isoformat() if st.session_state.start_time else None
+        components.html(
+            f"""
+            <div id="timerDisplay" style="color:#FF6B6B; font-size: 4rem; font-weight: bold;">{time_display:.2f}s</div>
+            <script>
+            (function(){{
+                const running = {running_js};
+                const startISO = {json.dumps(start_iso)};
+                const base = {base_offset:.6f};
+                const el = document.getElementById('timerDisplay');
+                function fmt(ms){{ return (ms/1000).toFixed(2) + 's'; }}
+                if (running && startISO) {{
+                    const t0 = new Date(startISO).getTime();
+                    const baseMs = base * 1000;
+                    let rafId;
+                    function tick(){{
+                        const now = Date.now();
+                        const elapsedMs = (now - t0) + baseMs;
+                        el.textContent = fmt(elapsedMs);
+                        rafId = window.requestAnimationFrame(tick);
+                    }}
+                    tick();
+                    window.addEventListener('beforeunload', ()=>{{ if (rafId) cancelAnimationFrame(rafId); }});
+                }} else {{
+                    el.textContent = fmt(base*1000);
+                }}
+            }})();
+            </script>
+            """,
+            height=100,
+        )
     
     with timer_col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
