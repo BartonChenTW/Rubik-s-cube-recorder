@@ -44,6 +44,42 @@ class GitHubStorage:
         except Exception:
             return False
     
+    def get_git_config(self, key):
+        """Get git config value"""
+        try:
+            result = subprocess.run(
+                ["git", "config", key],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return None
+        except Exception:
+            return None
+    
+    def set_git_config(self, key, value):
+        """Set git config value"""
+        try:
+            subprocess.run(
+                ["git", "config", key, value],
+                cwd=self.repo_path,
+                check=True,
+                capture_output=True,
+                timeout=5
+            )
+            return True
+        except Exception:
+            return False
+    
+    def is_git_configured(self):
+        """Check if git user is configured"""
+        email = self.get_git_config("user.email")
+        name = self.get_git_config("user.name")
+        return bool(email and name)
+    
     def commit_data(self, message="Update solve records"):
         """
         Commit data files to git repository
@@ -154,6 +190,41 @@ def show_github_sync_ui():
     if not github.is_git_repo():
         st.sidebar.warning("⚠️ Not a git repository")
         return
+    
+    # Check if Git is configured
+    if not github.is_git_configured():
+        st.sidebar.warning("⚠️ Git user not configured")
+        
+        with st.sidebar.expander("⚙️ Configure Git", expanded=True):
+            st.write("Set your Git identity:")
+            
+            git_name = st.text_input(
+                "Your Name",
+                value=github.get_git_config("user.name") or "",
+                key="git_name_input"
+            )
+            git_email = st.text_input(
+                "Your Email",
+                value=github.get_git_config("user.email") or "",
+                key="git_email_input"
+            )
+            
+            if st.button("Save Git Config", key="save_git_config"):
+                if git_name and git_email:
+                    if github.set_git_config("user.name", git_name) and \
+                       github.set_git_config("user.email", git_email):
+                        st.success("✅ Git configured successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to save Git config")
+                else:
+                    st.error("❌ Please fill in both name and email")
+        return
+    
+    # Show configured user info
+    git_user = github.get_git_config("user.name")
+    git_email = github.get_git_config("user.email")
+    st.sidebar.caption(f"👤 {git_user} ({git_email})")
     
     # Auto-save toggle
     auto_save = st.sidebar.checkbox(

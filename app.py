@@ -10,9 +10,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
-from utils.data_manager import DataManager
+from utils.mongo_data_manager import MongoDataManager, show_mongodb_config_ui
 from utils.visualizations import create_time_chart, create_statistics_cards
-from utils.github_storage import GitHubStorage, show_github_sync_ui
 
 # Page configuration
 st.set_page_config(
@@ -22,9 +21,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize data manager and GitHub storage
-data_manager = DataManager()
-github_storage = GitHubStorage()
+# Initialize MongoDB data manager
+data_manager = MongoDataManager()
 
 # Custom CSS
 st.markdown("""
@@ -85,9 +83,6 @@ page = st.sidebar.radio(
     "Choose a page:",
     ["Record New Solve", "View Records", "Statistics", "Algorithms"]
 )
-
-# Add GitHub sync UI
-show_github_sync_ui()
 
 # ===== RECORD NEW SOLVE PAGE =====
 if page == "Record New Solve":
@@ -265,17 +260,6 @@ if page == "Record New Solve":
             }
             data_manager.add_solve(record)
             st.success("✅ Solve recorded successfully!")
-            
-            # Auto-sync to GitHub if enabled
-            if st.session_state.get('github_auto_save', False):
-                with st.spinner("Syncing to GitHub..."):
-                    success, message = github_storage.commit_and_push(
-                        f"Add solve: {st.session_state.player_name} - {solve_time:.2f}s"
-                    )
-                    if success:
-                        st.info("☁️ Synced to GitHub")
-                    else:
-                        st.warning(f"⚠️ Could not sync: {message}")
             
             st.balloons()
         else:
