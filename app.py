@@ -23,8 +23,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize MongoDB data manager
-data_manager = MongoDataManager()
+# Lazy initialize MongoDB data manager
+@st.cache_resource
+def get_data_manager():
+    return MongoDataManager()
+
+data_manager = get_data_manager()
 
 # Cache algorithms to avoid DB hits on every rerun
 @st.cache_data(ttl=300)
